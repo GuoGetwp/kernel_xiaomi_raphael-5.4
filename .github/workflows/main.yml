@@ -30,8 +30,9 @@ jobs:
         # 根据源码实际情况修改 defconfig 名字
         make O=out ARCH=arm64 raphael_defconfig
         
+        # 加了 KCFLAGS="-Wno-error"，强制编译器跳过警告报错
         # GitHub的机器只有7G内存，用-j2防止内存溢出
-        make O=out ARCH=arm64 -j2
+        make O=out ARCH=arm64 KCFLAGS="-Wno-error" -j2
 
     - name: Download AnyKernel3
       run: |
