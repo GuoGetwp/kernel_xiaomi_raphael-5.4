@@ -27,11 +27,9 @@ jobs:
         export CROSS_COMPILE=aarch64-linux-gnu-
         export CLANG_TRIPLE=aarch64-linux-gnu-
         
-        # 根据源码实际情况修改 defconfig 名字
         make O=out ARCH=arm64 raphael_defconfig
         
-        # 加了 KCFLAGS="-Wno-error"，强制编译器跳过警告报错
-        # GitHub的机器只有7G内存，用-j2防止内存溢出
+        # 强制跳过警告报错
         make O=out ARCH=arm64 KCFLAGS="-Wno-error" -j2
 
     - name: Download AnyKernel3
@@ -41,13 +39,21 @@ jobs:
     - name: Package ZIP
       run: |
         cd anykernel
-        sed -i 's/device.name1=.*/device.name1=raphael/' anykernel.sh
+        # 修改设备代号，加 || true 防止找不到文件报错中断
+        sed -i 's/device.name1=.*/device.name1=raphael/' anykernel.sh 2>/dev/null || true
         
-        # 复制内核产物
-        cp ../out/arch/arm64/boot/Image.gz ./ 2>/dev/null || cp ../out/arch/arm64/boot/Image ./
-        cp ../out/arch/arm64/boot/dtbo.img ./ 2>/dev/null
+        # 拷贝产物，加 || true 防止缺失文件报错中断
+        cp ../out/arch/arm64/boot/Image.gz ./ 2>/dev/null || true
+        cp ../out/arch/arm64/boot/Image ./ 2>/dev/null || true
+        cp ../out/arch/arm64/boot/dtbo.img ./ 2>/dev/null || true
         
-        zip -r9 ../Raphael-5.4-Kernel.zip *
+        # 只要内核存在就打包
+        if [ -f Image.gz ] || [ -f Image ]; then
+          zip -r9 ../Raphael-5.4-Kernel.zip *
+        else
+          echo "错误：找不到编译出的内核文件！"
+          exit 1
+        fi
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
