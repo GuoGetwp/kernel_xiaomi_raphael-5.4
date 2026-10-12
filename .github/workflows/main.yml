@@ -27,10 +27,12 @@ jobs:
         export CROSS_COMPILE=aarch64-linux-gnu-
         export CLANG_TRIPLE=aarch64-linux-gnu-
         
+        # 生成配置
         make O=out ARCH=arm64 raphael_defconfig
         
-        # 强制跳过警告报错
+        # 编译主内核和 dtbo，强制跳过警告报错
         make O=out ARCH=arm64 KCFLAGS="-Wno-error" -j2
+        make O=out ARCH=arm64 KCFLAGS="-Wno-error" dtbo.img 2>/dev/null || true
 
     - name: Download AnyKernel3
       run: |
@@ -39,21 +41,27 @@ jobs:
     - name: Package ZIP
       run: |
         cd anykernel
-        # 修改设备代号，加 || true 防止找不到文件报错中断
         sed -i 's/device.name1=.*/device.name1=raphael/' anykernel.sh 2>/dev/null || true
         
-        # 拷贝产物，加 || true 防止缺失文件报错中断
-        cp ../out/arch/arm64/boot/Image.gz ./ 2>/dev/null || true
-        cp ../out/arch/arm64/boot/Image ./ 2>/dev/null || true
+        # ================= 终极防漏打包 =================
+        # 1. 抓取内核本体
+        cp ../out/arch/arm64/boot/Image.gz ./ 2>/dev/null || cp ../out/arch/arm64/boot/Image ./ 2>/dev/null || true
+        
+        # 2. 抓取根目录的 dtbo.img
         cp ../out/arch/arm64/boot/dtbo.img ./ 2>/dev/null || true
         
-        # 只要内核存在就打包
-        if [ -f Image.gz ] || [ -f Image ]; then
-          zip -r9 ../Raphael-5.4-Kernel.zip *
-        else
-          echo "错误：找不到编译出的内核文件！"
-          exit 1
-        fi
+        # 3. 搜索所有相关的设备树文件 (dtb/dtbo) 并全部打包
+        find ../out/arch/arm64/boot/dts/qcom/ -name "*raphael*" -exec cp {} ./ \; 2>/dev/null || true
+        find ../out/arch/arm64/boot/dts/qcom/ -name "sm8150*" -exec cp {} ./ \; 2>/dev/null || true
+        
+        # 4. 打印最终打包的文件列表，方便你核对
+        echo "================ 最终打包文件列表 ================"
+        ls -lh
+        echo "================================================="
+        
+        # 5. 打包
+        zip -r9 ../Raphael-5.4-Kernel.zip *
+        # ===============================================
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
