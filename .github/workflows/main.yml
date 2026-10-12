@@ -1,0 +1,55 @@
+name: Build Kernel Raphael 5.4
+
+on:
+  workflow_dispatch: # 手动触发编译
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Source
+      uses: actions/checkout@v4
+      with:
+        ref: zundamon-miui-5.4
+        submodules: 'recursive'
+
+    - name: Install Dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y git curl bc bison flex libssl-dev libelf-dev zip unzip python3 python-is-python3 gcc-aarch64-linux-gnu clang llvm lld device-tree-compiler
+
+    - name: Build Kernel
+      run: |
+        export ARCH=arm64
+        export SUBARCH=arm64
+        export CC=clang
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        export CLANG_TRIPLE=aarch64-linux-gnu-
+        
+        # 根据源码实际情况修改 defconfig 名字
+        make O=out ARCH=arm64 raphael_defconfig
+        
+        # GitHub的机器只有7G内存，用-j2防止内存溢出
+        make O=out ARCH=arm64 -j2
+
+    - name: Download AnyKernel3
+      run: |
+        git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git -b master anykernel
+        
+    - name: Package ZIP
+      run: |
+        cd anykernel
+        sed -i 's/device.name1=.*/device.name1=raphael/' anykernel.sh
+        
+        # 复制内核产物
+        cp ../out/arch/arm64/boot/Image.gz ./ 2>/dev/null || cp ../out/arch/arm64/boot/Image ./
+        cp ../out/arch/arm64/boot/dtbo.img ./ 2>/dev/null
+        
+        zip -r9 ../Raphael-5.4-Kernel.zip *
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Raphael-5.4-Kernel
+        path: Raphael-5.4-Kernel.zip
